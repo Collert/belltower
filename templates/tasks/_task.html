@@ -1,0 +1,17 @@
+<li class="row{% if task.completed %} done{% endif %}{% if sub %} sub{% endif %}">
+  <form class="inline" method="post" action="{% url 'task-toggle' task.pk %}">
+    {% csrf_token %}
+    <button class="link" title="{% if task.completed %}Mark not done{% else %}Mark done{% endif %}">{% if task.completed %}☑{% else %}☐{% endif %}</button>
+  </form>
+  <div class="grow">
+    <div class="title">{{ task.title }}</div>
+    {% if task.description %}<div class="muted">{{ task.description|linebreaksbr }}</div>{% endif %}
+    <div class="muted">
+      Added {{ task.created_at|date:"M j, H:i" }}
+      {% if task.expires_at %}· <span{% if task.is_expired %} class="expired"{% endif %}>{% if task.is_expired %}Expired{% else %}Expires{% endif %} {{ task.expires_at|date:"M j, H:i" }}</span>{% endif %}
+    </div>
+  </div>
+  <form class="inline" method="post" action="{% url 'task-delete' task.pk %}">
+    {% csrf_token %}<button class="link danger" title="Delete">✕</button>
+  </form>
+</li>

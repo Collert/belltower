@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Account · Belltower{% endblock %}
+{% block content %}
+<h1>{{ user.get_username }}</h1>
+<h2>API token</h2>
+<p class="muted">Use this for the REST API, devices and AI agents (MCP). Send it as <code>Authorization: Bearer &lt;token&gt;</code>.</p>
+{% if token %}<pre>{{ token.key }}</pre>{% endif %}
+<form method="post" action="{% url 'regenerate-token' %}">
+  {% csrf_token %}
+  <button>{% if token %}Regenerate token{% else %}Create token{% endif %}</button>
+</form>
+{% if token %}<p class="muted">Regenerating invalidates the old token.</p>{% endif %}
+
+<h2>Connected apps</h2>
+{% if api_keys %}
+<ul class="plain card">
+  {% for key in api_keys %}
+  <li class="row">
+    <div class="grow">
+      <div>{{ key.name }}</div>
+      <div class="muted"><code>{{ key.prefix }}…</code> · connected {{ key.created_at|date:"Y-m-d H:i" }}{% if key.last_used_at %} · last used {{ key.last_used_at|timesince }} ago{% endif %}</div>
+    </div>
+    <form class="inline" method="post" action="{% url 'revoke-api-key' key.pk %}">{% csrf_token %}<button class="danger">Disconnect</button></form>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="muted">No apps are connected. Apps like Town Hall connect from their own settings and ask you to approve here.</p>
+{% endif %}
+{% endblock %}

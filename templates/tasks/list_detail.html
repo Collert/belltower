@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}{{ list.name }} · Belltower{% endblock %}
+{% block content %}
+<p><a href="{% url 'index' %}">← Lists</a></p>
+<h1>{{ list.name }}</h1>
+<ul class="plain card">
+  {% for task in tasks %}
+    {% include "tasks/_task.html" with task=task sub=False %}
+    {% for subtask in task.subtasks.all %}
+      {% include "tasks/_task.html" with task=subtask sub=True %}
+    {% endfor %}
+  {% empty %}
+    <li class="row muted">No tasks yet.</li>
+  {% endfor %}
+</ul>
+<form class="stack" method="post">
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  {{ form.title.errors }}{{ form.title }}
+  {{ form.description }}
+  <label>{{ form.expires_at.label }} {{ form.expires_at.errors }}{{ form.expires_at }}</label>
+  {% if form.parent.field.queryset.exists %}<label>{{ form.parent.label }} {{ form.parent }}</label>{% endif %}
+  <button class="primary">Add task</button>
+</form>
+<form method="post" action="{% url 'list-delete' list.pk %}" onsubmit="return confirm('Delete this list and all its tasks?')">
+  {% csrf_token %}<button class="danger">Delete list</button>
+</form>
+<p class="muted">API: <code>GET /api/tasks/?list={{ list.pk }}&amp;active=true</code></p>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Sign in · Belltower{% endblock %}
+{% block content %}
+<h1>Sign in</h1>
+<form class="stack" method="post" action="{% url 'login' %}">
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  <label>Username {{ form.username }}</label>
+  <label>Password {{ form.password }}</label>
+  <input type="hidden" name="next" value="{{ next }}">
+  <button class="primary">Sign in</button>
+</form>
+{% if sso_enabled %}
+  <p class="muted">or</p>
+  <form method="get" action="{% url 'oidc_authentication_init' %}">
+    {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+    <button>Sign in with {{ sso_provider_name }}</button>
+  </form>
+{% endif %}
+{% endblock %}

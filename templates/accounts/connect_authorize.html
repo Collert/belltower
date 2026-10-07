@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Connect {{ client_name }} · Belltower{% endblock %}
+{% block content %}
+<h1>Connect {{ client_name }}?</h1>
+<div class="card pad">
+  <p><strong>{{ client_name }}</strong> at <code>{{ client_host }}</code> wants to use Belltower as
+    <strong>{{ user.get_username }}</strong>.</p>
+  <p class="muted">It will be able to create lists, add and complete tasks, and share lists, in every list you're a member of.
+    You can disconnect it at any time from your <a href="{% url 'account' %}">account page</a>.</p>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="client_name" value="{{ client_name }}">
+    <input type="hidden" name="redirect_uri" value="{{ redirect_uri }}">
+    <input type="hidden" name="state" value="{{ state }}">
+    <button class="primary" name="allow" value="1">Allow</button>
+    <button name="deny" value="1">Cancel</button>
+  </form>
+</div>
+<form method="post" action="{% url 'logout' %}">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  <p class="muted">Not {{ user.get_username }}? <button class="link">Sign in as someone else</button></p>
+</form>
+{% endblock %}
