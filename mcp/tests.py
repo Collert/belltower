@@ -13,7 +13,7 @@ class McpTests(APITestCase):
         token = Token.objects.create(user=self.user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token.key}', HTTP_ACCEPT='application/json, text/event-stream')
         self.list = List.objects.create(name='Gala')
-        self.list.users.add(self.user)
+        self.list.add_member(self.user, admin=True)
 
     def rpc(self, method, params=None, id=1):
         message = {'jsonrpc': '2.0', 'method': method, 'id': id}
@@ -98,3 +98,42 @@ class McpTests(APITestCase):
         resp = self.client.post('/mcp', 'not json', content_type='application/json')
         self.assertEqual(resp.json()['error']['code'], -32700)
         self.assertEqual(self.client.get('/mcp').status_code, 405)
+
+
+class McpRoleTests(APITestCase):
+    def setUp(self):
+        from tasks.models import List, Task
+        self.admin = User.objects.create_user('alice')
+        self.member = User.objects.create_user('bob')
+        self.list = List.objects.create(name='Gala')
+        self.list.add_member(self.admin, admin=True)
+        self.list.add_member(self.member)
+        self.task = Task.objects.create(title='Chairs', list=self.list)
+        self.client.force_authenticate(self.member)
+
+    def call(self, name, **arguments):
+        resp = self.client.post('/mcp', {'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
+                                         'params': {'name': name, 'arguments': arguments}}, format='json')
+        result = resp.json()['result']
+        return result['isError'], result['content'][0]['text']
+
+    def test_member_tools(self):
+        error, text = self.call('delete_task', task_id=self.task.pk)
+        self.assertTrue(error)
+        self.assertIn('Not allowed', text)
+        error, text = self.call('take_task', task_id=self.task.pk)
+        self.assertFalse(error)
+        self.assertIn('"assignee": "bob"', text)
+        error, text = self.call('update_task', task_id=self.task.pk, title='Renamed')
+        self.assertTrue(error)
+
+    def test_merge_and_move_tools(self):
+        from tasks.models import List
+        other = List.objects.create(name='Other')
+        other.add_member(self.member, admin=True)
+        self.list.admins.add(self.member)
+        error, text = self.call('move_task', task_id=self.task.pk, list_id=other.pk)
+        self.assertFalse(error, text)
+        error, text = self.call('merge_lists', target_list_id=self.list.pk, source_list_id=other.pk)
+        self.assertFalse(error, text)
+        self.assertIn('Gala & Other', text)

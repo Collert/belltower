@@ -19,7 +19,7 @@ from django.contrib import admin
 from django.urls import path, include
 from rest_framework.authtoken.views import obtain_auth_token
 
-from accounts import connect
+from accounts import connect, provisioning
 from mcp.views import McpView
 
 urlpatterns = [
@@ -31,6 +31,12 @@ urlpatterns = [
     path('connect/authorize/', connect.authorize, name='connect-authorize'),
     path('connect/token/', connect.token, name='connect-token'),
     path('api/connect/revoke/', connect.revoke, name='connect-revoke'),
+    # Accounts for a connected app's people (see accounts/provisioning.py). Before the
+    # router so users/link/ isn't read as a username.
+    path('api/me/', provisioning.me, name='api-me'),
+    path('api/users/link/', provisioning.link_user, name='api-link-user'),
+    path('api/users/<str:username>/login-link/', provisioning.login_link, name='api-login-link'),
+    path('connect/login/<str:token>/', provisioning.use_login_link, name='login-link'),
     path('api/', include('tasks.api_urls')),
     path('api-auth/', include('rest_framework.urls')),
     # No trailing slash: MCP clients POST to the exact URL they're given.

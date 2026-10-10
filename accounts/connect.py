@@ -39,6 +39,7 @@ def well_known(request):
         'authorize_url': absolute(reverse('connect-authorize')),
         'token_url': absolute(reverse('connect-token')),
         'revoke_url': absolute(reverse('connect-revoke')),
+        'me_url': absolute(reverse('api-me')),
         'api_url': absolute('/api/'),
         'mcp_url': absolute(reverse('mcp')),
         # Web UI page for a list; replace {id}.

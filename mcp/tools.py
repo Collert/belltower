@@ -12,6 +12,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 from tasks.models import List, Task
+from tasks.permissions import check_task_update, require_admin
 from tasks.serializers import ListSerializer, TaskSerializer
 
 
@@ -77,9 +78,34 @@ def rename_list(request, list_id, name):
     return _save(ListSerializer(task_list, data={'name': name}, partial=True, context={'request': request}))
 
 
+@tool(
+    'merge_lists', 'Merge one list into another: its tasks, members and admins move over, the name becomes '
+    '"Target & Source", and the source list is deleted. You must be an admin of both.',
+    {'target_list_id': ID, 'source_list_id': ID}, required=['target_list_id', 'source_list_id'],
+)
+def merge_lists(request, target_list_id, source_list_id):
+    target = get_object_or_404(_lists(request), pk=target_list_id)
+    source = get_object_or_404(_lists(request).exclude(pk=target.pk), pk=source_list_id)
+    require_admin(request.user, target, 'merge lists')
+    require_admin(request.user, source, 'merge lists')
+    target.merge(source)
+    return ListSerializer(target, context={'request': request}).data
+
+
+@tool(
+    'move_task', 'Move a task (and its subtasks) to another list. You must be an admin of both lists.',
+    {'task_id': ID, 'list_id': ID}, required=['task_id', 'list_id'],
+)
+def move_task(request, task_id, list_id):
+    task = get_object_or_404(_tasks(request), pk=task_id)
+    return _save(TaskSerializer(task, data={'list': list_id}, partial=True, context={'request': request}))
+
+
 @tool('delete_list', 'Delete a task list and all of its tasks.', {'list_id': ID}, required=['list_id'])
 def delete_list(request, list_id):
-    get_object_or_404(_lists(request), pk=list_id).delete()
+    task_list = get_object_or_404(_lists(request), pk=list_id)
+    require_admin(request.user, task_list, 'delete the list')
+    task_list.delete()
     return {'deleted': True}
 
 
@@ -110,11 +136,15 @@ def list_tasks(request, list_id=None, include_completed=False, include_expired=F
         'description': {'type': 'string'},
         'expires_at': DATETIME,
         'parent_id': {**ID, 'description': 'Make this a subtask of another task in the same list.'},
+        'assignee': {'type': ['string', 'null'], 'description': 'Username of the list member doing it.'},
     },
     required=['list_id', 'title'],
 )
-def create_task(request, list_id, title, description='', expires_at=None, parent_id=None):
-    data = {'list': list_id, 'title': title, 'description': description, 'expires_at': expires_at, 'parent': parent_id}
+def create_task(request, list_id, title, description='', expires_at=None, parent_id=None, assignee=None):
+    data = {
+        'list': list_id, 'title': title, 'description': description, 'expires_at': expires_at,
+        'parent': parent_id, 'assignee': assignee,
+    }
     return _save(TaskSerializer(data=data, context={'request': request}))
 
 
@@ -126,11 +156,12 @@ def create_task(request, list_id, title, description='', expires_at=None, parent
         'description': {'type': 'string'},
         'expires_at': DATETIME,
         'completed': {'type': 'boolean'},
+        'assignee': {'type': ['string', 'null'], 'description': 'Username of the list member doing it; null to unassign.'},
     },
     required=['task_id'],
 )
 def update_task(request, task_id, **changes):
-    unknown = changes.keys() - {'title', 'description', 'expires_at', 'completed'}
+    unknown = changes.keys() - {'title', 'description', 'expires_at', 'completed', 'assignee'}
     if unknown:
         raise TypeError(f"unexpected argument(s): {', '.join(sorted(unknown))}")
     task = get_object_or_404(_tasks(request), pk=task_id)
@@ -142,7 +173,20 @@ def complete_task(request, task_id):
     return update_task(request, task_id, completed=True)
 
 
+@tool('take_task', 'Assign a task to yourself, or let go of it with release=true.',
+      {'task_id': ID, 'release': {'type': 'boolean', 'default': False}}, required=['task_id'])
+def take_task(request, task_id, release=False):
+    task = get_object_or_404(_tasks(request), pk=task_id)
+    assignee = None if release else request.user
+    check_task_update(request.user, task, {'assignee': assignee})
+    task.assignee = assignee
+    task.save(update_fields=['assignee'])
+    return TaskSerializer(task, context={'request': request}).data
+
+
 @tool('delete_task', 'Delete a task and its subtasks.', {'task_id': ID}, required=['task_id'])
 def delete_task(request, task_id):
-    get_object_or_404(_tasks(request), pk=task_id).delete()
+    task = get_object_or_404(_tasks(request), pk=task_id)
+    require_admin(request.user, task.list, 'delete tasks')
+    task.delete()
     return {'deleted': True}

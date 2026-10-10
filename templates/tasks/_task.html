@@ -9,9 +9,17 @@
     <div class="muted">
       Added {{ task.created_at|date:"M j, H:i" }}
       {% if task.expires_at %}· <span{% if task.is_expired %} class="expired"{% endif %}>{% if task.is_expired %}Expired{% else %}Expires{% endif %} {{ task.expires_at|date:"M j, H:i" }}</span>{% endif %}
+      {% if task.assignee %}· {% if task.assignee == user %}<strong>You're on it</strong>{% else %}{{ task.assignee.get_full_name|default:task.assignee.get_username }}{% endif %}{% endif %}
     </div>
   </div>
+  {% if not task.completed and not task.assignee or not task.completed and task.assignee == user %}
+  <form class="inline" method="post" action="{% url 'task-claim' task.pk %}">
+    {% csrf_token %}<button class="link">{% if task.assignee == user %}Let go{% else %}Take it{% endif %}</button>
+  </form>
+  {% endif %}
+  {% if is_admin %}
   <form class="inline" method="post" action="{% url 'task-delete' task.pk %}">
     {% csrf_token %}<button class="link danger" title="Delete">✕</button>
   </form>
+  {% endif %}
 </li>

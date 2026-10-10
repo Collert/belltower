@@ -36,6 +36,26 @@ Task filters: `?list=<id>`, `?active=true` (not completed, not expired),
 Users only see lists they're a member of. Creating a list makes you a member; pass
 `users` (usernames) to add others.
 
+**Roles.** A list's members can see its tasks, complete them and take them on (set
+`assignee` to themselves, or clear it). Its **admins** (`admins`, always also members; the
+creator is one) can also add, edit, delete and assign tasks to any member, and manage the
+list and its members. The rules live in `tasks/permissions.py` and apply to the API, the
+web UI and MCP. `is_admin` on a list says whether you are one. Lists that existed before
+roles were added made all their members admins.
+
+**Sharing by email.** `POST /api/lists/<id>/members/` with `email` (or `username`) and
+`admin` adds someone or changes their role; no matching account gives 404.
+`DELETE /api/lists/<id>/members/<username>/` removes them (their tasks are unassigned).
+You can't demote or remove yourself this way. `members` on a list gives each member's
+username, name, email and role. Filter tasks with `?assignee=me|none|<username>`.
+
+**Merging and moving.** `POST /api/lists/<id>/merge/` with `list` (and optionally `name`)
+folds another list's tasks, members and admins into this one, names it "This & Other" and
+deletes the other; you must be an admin of both. PATCHing a task's `list` moves it with
+its subtasks (a subtask moved alone drops its parent; assignees who aren't members of the
+new list are unassigned). Admins can also rename and merge from a list's page in the web
+UI; MCP has `merge_lists` and `move_task`.
+
 `GET /api/users/?search=` lists active usernames (for sharing pickers). Lists created with
 `persistent: true` are never cleaned up automatically (they stay when empty and keep their
 completed and expired tasks); apps use this for long-lived lists such as event planning.
@@ -55,6 +75,13 @@ Apps get an API key through a small OAuth-style handshake instead of copy-pasted
 Each app gets its own key (only a hash is stored). Users disconnect apps under
 **Connected apps** on the account page; an app can revoke its own key with
 `POST /api/connect/revoke/`.
+
+**Accounts for an app's people.** If the connected account is **staff**, the app can
+also link its users to Belltower accounts (`POST /api/users/link/` with `email`: finds
+the account with that email or creates one without a password) and hand them one-time
+sign-in links (`POST /api/users/<username>/login-link/` with `next`, a path). Links
+last two minutes, work once, and are never issued for staff or superusers. `GET /api/me/`
+says who a key acts as and whether it's staff. See `accounts/provisioning.py`.
 
 Session and CSRF cookies are named `belltower_sessionid` / `belltower_csrftoken`, so
 running Belltower next to another Django app on the same host (e.g. Town Hall on

@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from .models import ApiKey, ConnectGrant, SsoIdentity
+from .models import ApiKey, ConnectGrant, LoginLink, SsoIdentity
 
 OIDC_SETTINGS = dict(
     OIDC_PROVIDER_NAME='Authentik',
@@ -141,3 +141,62 @@ class ConnectFlowTests(TestCase):
         resp = self.client.get('/api/lists/', HTTP_AUTHORIZATION=f'Bearer {token.key}')
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(self.client.post('/api/connect/revoke/', HTTP_AUTHORIZATION=f'Bearer {token.key}').status_code, 400)
+
+
+class ProvisioningTests(TestCase):
+    def setUp(self):
+        self.app = User.objects.create_user('townhall', is_staff=True)
+        _, secret = ApiKey.issue(self.app, 'Town Hall (hall.example.org)')
+        self.auth = {'HTTP_AUTHORIZATION': f'Bearer {secret}'}
+
+    def post(self, url, data, **auth):
+        return self.client.post(url, data, content_type='application/json', **(auth or self.auth))
+
+    def test_me(self):
+        data = self.client.get('/api/me/', **self.auth).json()
+        self.assertEqual((data['username'], data['is_staff']), ('townhall', True))
+
+    def test_link_finds_or_creates(self):
+        existing = User.objects.create_user('vera', email='Vera@Example.org')
+        data = self.post('/api/users/link/', {'email': 'vera@example.org'}).json()
+        self.assertEqual((data['username'], data['created']), ('vera', False))
+
+        resp = self.post('/api/users/link/', {'email': 'new.person@example.org', 'first_name': 'New'})
+        self.assertEqual(resp.status_code, 201)
+        user = User.objects.get(username=resp.json()['username'])
+        self.assertEqual((user.username, user.email, user.first_name), ('new.person', 'new.person@example.org', 'New'))
+        self.assertFalse(user.has_usable_password())
+
+        # Username clashes get a number.
+        User.objects.create_user('sam', email='sam@one.org')
+        self.assertEqual(self.post('/api/users/link/', {'email': 'sam@two.org'}).json()['username'], 'sam2')
+        self.assertTrue(existing.is_active)
+
+    def test_link_needs_staff(self):
+        plain = User.objects.create_user('plain')
+        _, secret = ApiKey.issue(plain, 'x')
+        resp = self.post('/api/users/link/', {'email': 'a@b.org'}, HTTP_AUTHORIZATION=f'Bearer {secret}')
+        self.assertEqual(resp.status_code, 403)
+
+    def test_login_link(self):
+        vol = User.objects.create_user('vera', email='vera@example.org')
+        url = self.post('/api/users/vera/login-link/', {'next': '/lists/3/'}).json()['url']
+        resp = self.client.get(urlsplit(url).path)
+        self.assertRedirects(resp, '/lists/3/', fetch_redirect_response=False)
+        self.assertEqual(int(self.client.session['_auth_user_id']), vol.pk)
+        # Works once.
+        self.client.logout()
+        self.assertEqual(self.client.get(urlsplit(url).path).status_code, 400)
+
+    def test_login_link_expires(self):
+        User.objects.create_user('vera')
+        url = self.post('/api/users/vera/login-link/', {}).json()['url']
+        LoginLink.objects.update(created_at=timezone.now() - timedelta(minutes=3))
+        self.assertEqual(self.client.get(urlsplit(url).path).status_code, 400)
+
+    def test_no_login_links_for_staff_or_offsite_next(self):
+        User.objects.create_user('boss', is_staff=True)
+        self.assertEqual(self.post('/api/users/boss/login-link/', {}).status_code, 403)
+        User.objects.create_user('vera')
+        self.assertEqual(self.post('/api/users/vera/login-link/', {'next': '//evil.example/'}).status_code, 400)
+        self.assertEqual(self.post('/api/users/vera/login-link/', {'next': 'https://evil.example/'}).status_code, 400)

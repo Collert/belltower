@@ -13,17 +13,61 @@
     <li class="row muted">No tasks yet.</li>
   {% endfor %}
 </ul>
+{% if form %}
 <form class="stack" method="post">
   {% csrf_token %}
   {{ form.non_field_errors }}
   {{ form.title.errors }}{{ form.title }}
   {{ form.description }}
   <label>{{ form.expires_at.label }} {{ form.expires_at.errors }}{{ form.expires_at }}</label>
+  <label>{{ form.assignee.label }} {{ form.assignee.errors }}{{ form.assignee }}</label>
   {% if form.parent.field.queryset.exists %}<label>{{ form.parent.label }} {{ form.parent }}</label>{% endif %}
   <button class="primary">Add task</button>
 </form>
+{% else %}
+<p class="muted">You can complete tasks and take them on. Only the list's admins add and assign tasks.</p>
+{% endif %}
+
+<h2>Members</h2>
+<ul class="plain card">
+  {% for member, admin in members %}
+  <li class="row">
+    <div class="grow">{{ member.get_full_name|default:member.get_username }} <span class="muted">{{ member.email }}{% if admin %} · admin{% endif %}</span></div>
+    {% if is_admin and member != user %}
+    <form class="inline" method="post" action="{% url 'member-remove' list.pk member.pk %}">{% csrf_token %}<button class="link danger">Remove</button></form>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% if member_form %}
+<form class="stack" method="post" action="{% url 'member-add' list.pk %}">
+  {% csrf_token %}
+  {{ member_form.who.errors }}{{ member_form.who }}
+  <label>{{ member_form.admin }} {{ member_form.admin.label }}</label>
+  <button>Add member</button>
+</form>
+
+<h2>List settings</h2>
+<form class="stack" method="post" action="{% url 'list-rename' list.pk %}">
+  {% csrf_token %}
+  <label>Name <input type="text" name="name" value="{{ list.name }}" maxlength="200" required></label>
+  <button>Rename</button>
+</form>
+{% if mergeable %}
+<form class="stack" method="post" action="{% url 'list-merge' list.pk %}" onsubmit="return confirm('Merge that list into this one? Its tasks and members move here and it is deleted.')">
+  {% csrf_token %}
+  <label>Merge another list into this one
+    <select name="other" required>
+      <option value="">Choose a list…</option>
+      {% for other in mergeable %}<option value="{{ other.pk }}">{{ other.name }}</option>{% endfor %}
+    </select>
+  </label>
+  <button>Merge</button>
+</form>
+{% endif %}
 <form method="post" action="{% url 'list-delete' list.pk %}" onsubmit="return confirm('Delete this list and all its tasks?')">
   {% csrf_token %}<button class="danger">Delete list</button>
 </form>
+{% endif %}
 <p class="muted">API: <code>GET /api/tasks/?list={{ list.pk }}&amp;active=true</code></p>
 {% endblock %}

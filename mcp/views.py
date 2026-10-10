@@ -28,7 +28,9 @@ SUPPORTED_PROTOCOL_VERSIONS = ('2025-11-25', '2025-06-18', '2025-03-26')
 SERVER_INFO = {'name': 'belltower', 'title': 'Belltower', 'version': '0.1.0'}
 INSTRUCTIONS = (
     'Belltower is a simple shared to-do system for events: lists contain tasks, tasks can have '
-    'subtasks and an optional expiration time. Use list_lists to find list ids before working with tasks.'
+    'subtasks, an optional expiration time and an assignee. Use list_lists to find list ids before working '
+    'with tasks. In lists where you are an admin (is_admin) you can add, edit, assign and delete tasks; in '
+    'other lists you can complete tasks and take them on yourself with take_task.'
 )
 
 PARSE_ERROR, INVALID_REQUEST, METHOD_NOT_FOUND, INVALID_PARAMS = -32700, -32600, -32601, -32602
@@ -64,6 +66,8 @@ def call_tool(request, params):
         return _tool_result(f'Invalid arguments: {e}', is_error=True)
     except exceptions.ValidationError as e:
         return _tool_result({'validation_errors': e.detail}, is_error=True)
+    except exceptions.PermissionDenied as e:
+        return _tool_result(f'Not allowed: {e.detail}', is_error=True)
     except (Http404, ObjectDoesNotExist):
         return _tool_result('Not found (or you are not a member of that list).', is_error=True)
 

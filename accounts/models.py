@@ -101,3 +101,37 @@ class ConnectGrant(models.Model):
         if grant.redirect_uri != redirect_uri or not grant.user.is_active:
             return None
         return grant
+
+
+class LoginLink(models.Model):
+    """A one-time sign-in link a connected app (with a staff key) hands to one of its users,
+    so people whose accounts the app created can open Belltower without a password.
+
+    Links last LIFETIME and work once. They're never issued for staff or superusers.
+    """
+
+    LIFETIME = timedelta(minutes=2)
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='+')
+    token_hash = models.CharField(max_length=64, unique=True, editable=False)
+    next_url = models.CharField(max_length=500, default='/')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    @classmethod
+    def issue(cls, user, next_url='/'):
+        token = secrets.token_urlsafe(32)
+        cls.objects.create(user=user, token_hash=_hash(token), next_url=next_url)
+        return token
+
+    @classmethod
+    def redeem(cls, token):
+        """Consume a link. Returns it, or None if it's unknown, expired or its user can't use it."""
+        cls.objects.filter(created_at__lt=timezone.now() - cls.LIFETIME).delete()
+        link = cls.objects.select_related('user').filter(token_hash=_hash(token)).first()
+        if link is None:
+            return None
+        link.delete()
+        user = link.user
+        if not user.is_active or user.is_staff or user.is_superuser:
+            return None
+        return link

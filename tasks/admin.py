@@ -13,7 +13,7 @@ class TaskInline(admin.TabularInline):
 class ListAdmin(admin.ModelAdmin):
     list_display = ['name', 'persistent', 'created_at', 'last_activity_at']
     list_filter = ['persistent']
-    filter_horizontal = ['users']
+    filter_horizontal = ['users', 'admins']
     inlines = [TaskInline]
 
 
