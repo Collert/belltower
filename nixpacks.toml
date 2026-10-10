@@ -1,5 +1,5 @@
 [phases.build]
-cmds = ["python manage.py collectstatic --noinput", "python manage.py migrate"]
+cmds = ["python manage.py migrate"]
 
 [start]
 cmd = "gunicorn belltower.wsgi:application --bind 0.0.0.0:8000"
