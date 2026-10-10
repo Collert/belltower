@@ -55,6 +55,9 @@ ALLOWED_HOSTS = [h for h in env('DJANGO_ALLOWED_HOSTS', '').split(',') if h]
 
 CSRF_TRUSTED_ORIGINS = [h for h in env('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',') if h]
 
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
+
 # Application definition
 
 INSTALLED_APPS = [
