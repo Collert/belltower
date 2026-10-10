@@ -3,3 +3,4 @@ djangorestframework==3.18.3
 mozilla-django-oidc==5.0.2
 tzdata==2026.5
 dj-database-url
+gunicorn
