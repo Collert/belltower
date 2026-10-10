@@ -53,6 +53,7 @@ DEBUG = env_bool('DJANGO_DEBUG', True)
 
 ALLOWED_HOSTS = [h for h in env('DJANGO_ALLOWED_HOSTS', '').split(',') if h]
 
+CSRF_TRUSTED_ORIGINS = [h for h in env('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',') if h]
 
 # Application definition
 
